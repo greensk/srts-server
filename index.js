@@ -31,85 +31,80 @@ wsServer.on('request', function(request) {
   // This is the most important callback for us, we'll handle
   // all messages from users here.
   connection.on('message', function(message) {
-    if (message.type === 'utf8') {
-      const messageData = JSON.parse(message.utf8Data)
-      const payload = messageData.payload ? messageData.payload : {}
-      console.log(messageData)
-      clients.forEach((client) => {
-        if (messageData.type === 'setPlayerName') {
-          const name = payload.name.toString()
-          if (client.connection === connection) {
-            client.name = name
-            client.status = 'wait'
-            console.log(`set name=${name} for user ud=${id}`)
-            sendGames(client)
-          }
-          return
-        }
-        if (messageData.type === 'createGame') {
-          if (client.connection === connection) {
-            const gameid = genid()
-            games.push({
-              id: gameid,
-              owner: client.id,
-              requests: [],
-              name: client.name
-            })
-            client.status = 'owner'
-            console.log(`create a new game name=${client.name} gameid=${gameid}`)
-            sendGames()
-          }
-          return
-        }
-        if (messageData.type === 'joinGame') {
-          if (client.connection === connection) {
-            const gameid = payload.game
-            const gameObject = games.find(g => g.id === gameid)
-            if (gameObject) {
-              gameObject.requests.push({ name: client.name, id: client.id })
-              const owner = clients.find(c => c.id === gameObject.owner)
-              const message = {
-                type: 'setGameRequests',
-                payload: {
-                  list: gameObject.requests
-                }
-              }
-              owner.connection.sendUTF(JSON.stringify(message))
-            }
-          }
-          return
-        }
-        if (messageData.type === 'startGame') {
-          if (client.connection === connection) {
-            const gameObject = games.find(g => g.owner === client.id)
-            if (gameObject) {
-              client.game = gameObject.id
-              console.log(`add user id = ${client.id} to game id=${gameObject.id}`)
-              clients.forEach((currentClient) => {
-                if (currentClient.id === payload.clientId) {
-                  currentClient.game = gameObject.id
-                  console.log(`add user id = ${currentClient.id} to game id=${gameObject.id}`)
-                  const message = {
-                    type: 'startGame',
-                    payload: {}
-                  }
-                  currentClient.connection.sendUTF(JSON.stringify(message))
-                  console.log('start game')
-                }
-              })
-            }
-          }
-          return
-        }
-        if (client.connection === connection) {
-          return
-        }
-        if (messageData.type === 'unitsEnergyUpdate') {
-          return
-        }
-        client.connection.sendUTF(message.utf8Data)
-      })
+    if (message.type !== 'utf8') {
+      return
     }
+    const messageData = JSON.parse(message.utf8Data)
+    const payload = messageData.payload ? messageData.payload : {}
+    const client = clients.find(c => c.connection === connection)
+    console.log(messageData)
+    if (messageData.type === 'setPlayerName') {
+      const name = payload.name.toString()
+      client.name = name
+      client.status = 'wait'
+      console.log(`set name=${name} for user ud=${id}`)
+      sendGames(client)
+      return
+    }
+    if (messageData.type === 'createGame') {
+      const gameid = genid()
+      games.push({
+        id: gameid,
+        owner: client.id,
+        requests: [],
+        name: client.name
+      })
+      client.status = 'owner'
+      console.log(`create a new game name=${client.name} gameid=${gameid}`)
+      sendGames()
+      return
+    }
+    if (messageData.type === 'joinGame') {
+      const gameid = payload.game
+      const gameObject = games.find(g => g.id === gameid)
+      if (gameObject) {
+        gameObject.requests.push({ name: client.name, id: client.id })
+        const owner = clients.find(c => c.id === gameObject.owner)
+        const message = {
+          type: 'setGameRequests',
+          payload: {
+            list: gameObject.requests
+          }
+        }
+        owner.connection.sendUTF(JSON.stringify(message))
+      }
+      return
+    }
+    if (messageData.type === 'startGame') {
+      const gameObject = games.find(g => g.owner === client.id)
+      if (gameObject) {
+        client.game = gameObject.id
+        console.log(`add user id = ${client.id} to game id=${gameObject.id}`)
+        clients.forEach((currentClient) => {
+          if (currentClient.id === payload.clientId) {
+            currentClient.game = gameObject.id
+            console.log(`add user id = ${currentClient.id} to game id=${gameObject.id}`)
+            const message = {
+              type: 'startGame',
+              payload: {}
+            }
+            currentClient.connection.sendUTF(JSON.stringify(message))
+            console.log('start game')
+          }
+        })
+      }
+      return
+    }
+    if (messageData.type === 'unitsEnergyUpdate') {
+      return
+    }
+    // rest actions
+    clients.forEach((currentClient) => {
+      if (currentClient.connection !== connection && currentClient.game === client.game) {
+        console.log(`propogate action to ${currentClient.id}`)
+        currentClient.connection.sendUTF(message.utf8Data)
+      }
+    })
   })
 
   connection.on('close', function(reason) {
