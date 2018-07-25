@@ -22,6 +22,7 @@ wsServer.on('request', function(request) {
   clients.push({
     id,
     connection,
+    player: 0,
     name: '',
     status: 'connected',
     game: null
@@ -37,6 +38,9 @@ wsServer.on('request', function(request) {
     const messageData = JSON.parse(message.utf8Data)
     const payload = messageData.payload ? messageData.payload : {}
     const client = clients.find(c => c.connection === connection)
+    if (messageData.type === 'unitsEnergyUpdate') {
+      return
+    }
     console.log(messageData)
     if (messageData.type === 'setPlayerName') {
       const name = payload.name.toString()
@@ -80,14 +84,18 @@ wsServer.on('request', function(request) {
       const gameObject = games.find(g => g.owner === client.id)
       if (gameObject) {
         client.game = gameObject.id
+        client.player = 0
         console.log(`add user id = ${client.id} to game id=${gameObject.id}`)
         clients.forEach((currentClient) => {
           if (currentClient.id === payload.clientId) {
             currentClient.game = gameObject.id
+            currentClient.player = 1
             console.log(`add user id = ${currentClient.id} to game id=${gameObject.id}`)
             const message = {
               type: 'startGame',
-              payload: {}
+              payload: {
+                player: currentClient.player
+              }
             }
             currentClient.connection.sendUTF(JSON.stringify(message))
             console.log('start game')
@@ -97,9 +105,7 @@ wsServer.on('request', function(request) {
       }
       return
     }
-    if (messageData.type === 'unitsEnergyUpdate') {
-      return
-    }
+
     // rest actions
     clients.forEach((currentClient) => {
       if (currentClient.connection !== connection && currentClient.game === client.game) {
