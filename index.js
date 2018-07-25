@@ -51,6 +51,7 @@ wsServer.on('request', function(request) {
       games.push({
         id: gameid,
         owner: client.id,
+        status: 'waiting',
         requests: [],
         name: client.name
       })
@@ -92,6 +93,7 @@ wsServer.on('request', function(request) {
             console.log('start game')
           }
         })
+        gameObject.status = 'started'
       }
       return
     }
@@ -137,7 +139,7 @@ function sendGames (onlyClient) {
       const message = {
         type: 'setGamesList',
         payload: {
-          games: games.map(g => ({ name: g.name, id: g.id })) 
+          games: games.filter(g => g.status === 'waiting').map(g => ({ name: g.name, id: g.id })) 
         }
       }
       client.connection.sendUTF(JSON.stringify(message))
