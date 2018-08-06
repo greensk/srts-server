@@ -51,22 +51,29 @@ wsServer.on('request', function(request) {
       return
     }
     if (messageData.type === 'createGame') {
-      const gameid = genid()
+      const gameId = genid()
       games.push({
-        id: gameid,
+        id: gameId,
         owner: client.id,
         status: 'waiting',
         requests: [],
         name: client.name
       })
       client.status = 'owner'
-      console.log(`create a new game name=${client.name} gameid=${gameid}`)
+      const message = {
+        type: 'setGameId',
+        payload: {
+          gameId: gameId
+        }
+      }
+      client.connection.sendUTF(JSON.stringify(message))
+      console.log(`create a new game name=${client.name} gameId=${gameId}`)
       sendGames()
       return
     }
     if (messageData.type === 'joinGame') {
-      const gameid = payload.game
-      const gameObject = games.find(g => g.id === gameid)
+      const gameId = payload.game
+      const gameObject = games.find(g => g.id === gameId)
       if (gameObject) {
         gameObject.requests.push({ name: client.name, id: client.id })
         const owner = clients.find(c => c.id === gameObject.owner)
@@ -94,7 +101,8 @@ wsServer.on('request', function(request) {
             const message = {
               type: 'startGame',
               payload: {
-                player: currentClient.player
+                player: currentClient.player,
+                gameId: gameObject.id
               }
             }
             currentClient.connection.sendUTF(JSON.stringify(message))
@@ -104,6 +112,12 @@ wsServer.on('request', function(request) {
         gameObject.status = 'started'
       }
       return
+    }
+    if (messageData.type === 'resumeGame') {
+      const payload = messageData.payload ? messageData.payload : {}
+      client.game = payload.gameId
+      client.payer = payload.player
+      // not necessary to create a new game object?
     }
 
     // rest actions
